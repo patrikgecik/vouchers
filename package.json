@@ -2,6 +2,7 @@
   "name": "terminar-vouchers",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
 "scripts": {
   "start": "node server.js",
   "build": "cd frontend && npm install && npm run build",
@@ -16,3 +17,6 @@
     "path": "^0.12.7"
   }
 }
+
+
+
