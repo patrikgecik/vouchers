@@ -1,28 +1,27 @@
-const fs = require('fs');
-const path = require('path');
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-const vouchersRoute = require('./backend/routes/vouchers');
-app.use('/api/vouchers', vouchersRoute);
-
-const distDir = path.join(__dirname, 'frontend', 'dist');
-if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(distDir, 'index.html'));
-  });
-} else {
-  console.warn('Frontend build not found. Run "npm run build" first if you need static assets.');
-}
-
 const PORT = process.env.PORT || 4000;
+
+// 1. API ROUTES
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// 2. SERVE FRONTEND (DÔLEŽITÉ)
+app.use(express.static(path.join(__dirname, "frontend/dist")));
+
+// 3. CATCH ALL – VRÁŤ FRONTEND
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "frontend/dist/index.html"));
+});
+
+// 4. START SERVER
 app.listen(PORT, () => {
-  console.log(`Voucher API running on ${PORT}`);
+  console.log("Server running on port " + PORT);
 });
