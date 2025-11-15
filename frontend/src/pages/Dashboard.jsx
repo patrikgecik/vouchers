@@ -15,90 +15,67 @@ const AdminDashboard = () => {
   const [editItem, setEditItem] = useState(null);
 
   useEffect(() => {
-    setOrders([
-      {
-        id: 1,
-        customer_name: 'Ján Novák',
-        customer_email: 'jan.novak@email.sk',
-        customer_phone: '+421901234567',
-        total_amount: 85,
-        status: 'pending',
-        created_at: '2024-11-09 10:30:00',
-        items: [
-          { item_name: 'Poukaz 50 EUR', quantity: 1, price: 50 },
-          { item_name: 'Masáž chrbta', quantity: 1, price: 35 }
-        ]
-      },
-      {
-        id: 2,
-        customer_name: 'Mária Kováčová',
-        customer_email: 'maria.kovacova@email.sk',
-        customer_phone: '+421902345678',
-        total_amount: 100,
-        status: 'completed',
-        created_at: '2024-11-08 14:20:00',
-        items: [
-          { item_name: 'Poukaz 100 EUR', quantity: 1, price: 100 }
-        ]
-      },
-      {
-        id: 3,
-        customer_name: 'Peter Horváth',
-        customer_email: 'peter.horvath@email.sk',
-        customer_phone: '+421903456789',
-        total_amount: 55,
-        status: 'pending',
-        created_at: '2024-11-09 09:15:00',
-        items: [
-          { item_name: 'Manikúra', quantity: 1, price: 25 },
-          { item_name: 'Strihanie vlasov', quantity: 1, price: 30 }
-        ]
-      }
-    ]);
-
-    setVouchers([
-      { id: 1, amount: 20, available_count: 50, validity_days: 365, description: 'Základný poukaz' },
-      { id: 2, amount: 50, available_count: 30, validity_days: 365, description: 'Stredný poukaz' },
-      { id: 3, amount: 100, available_count: 20, validity_days: 365, description: 'Premium poukaz' }
-    ]);
-
-    setServices([
-      { id: 1, name: 'Masáž chrbta', price: 35, available_count: 15, validity_days: 180, description: '60 min relaxačná masáž' },
-      { id: 2, name: 'Manikúra', price: 25, available_count: 25, validity_days: 90, description: 'Kompletná starostlivosť' },
-      { id: 3, name: 'Strihanie vlasov', price: 30, available_count: 40, validity_days: 60, description: 'Strihanie s umytím' },
-      { id: 4, name: 'Permanentka fitness', price: 45, available_count: 10, validity_days: 30, description: 'Mesačná permanentka' }
-    ]);
-
-    setUsedVouchers([
-      { 
-        id: 1, 
-        voucher_code: 'VOUCH-2024-001', 
-        original_amount: 50, 
-        remaining_amount: 35, 
-        used_amount: 15,
-        customer_name: 'Ján Novák',
-        issue_date: '2024-10-15',
-        expiry_date: '2025-10-15',
-        status: 'active'
-      },
-      { 
-        id: 2, 
-        voucher_code: 'VOUCH-2024-002', 
-        original_amount: 100, 
-        remaining_amount: 0, 
-        used_amount: 100,
-        customer_name: 'Mária Kováčová',
-        issue_date: '2024-09-20',
-        expiry_date: '2025-09-20',
-        status: 'used'
-      }
-    ]);
+    fetchAllData();
   }, []);
 
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    ));
+  const fetchAllData = async () => {
+    try {
+      console.log('Fetching data from API...');
+      
+      // Fetch orders
+      const ordersResponse = await fetch('/api/orders');
+      if (ordersResponse.ok) {
+        const ordersData = await ordersResponse.json();
+        console.log('Orders data:', ordersData);
+        setOrders(ordersData);
+      }
+
+      // Fetch vouchers  
+      const vouchersResponse = await fetch('/api/vouchers');
+      if (vouchersResponse.ok) {
+        const vouchersData = await vouchersResponse.json();
+        console.log('Vouchers data:', vouchersData);
+        setVouchers(vouchersData);
+      }
+
+      // Fetch services
+      const servicesResponse = await fetch('/api/services');
+      if (servicesResponse.ok) {
+        const servicesData = await servicesResponse.json();
+        console.log('Services data:', servicesData);
+        setServices(servicesData);
+      }
+
+      // Fetch used vouchers
+      const usedVouchersResponse = await fetch('/api/used-vouchers');
+      if (usedVouchersResponse.ok) {
+        const usedVouchersData = await usedVouchersResponse.json();
+        console.log('Used vouchers data:', usedVouchersData);
+        setUsedVouchers(usedVouchersData);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        setOrders(orders.map(order => 
+          order.id === orderId ? { ...order, status: newStatus } : order
+        ));
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+    }
   };
 
   const openModal = (type, item = null) => {
@@ -112,46 +89,120 @@ const AdminDashboard = () => {
     setEditItem(null);
   };
 
-  const handleSubmit = (formData) => {
-    if (modalType === 'voucher') {
-      if (editItem) {
-        setVouchers(vouchers.map(v => v.id === editItem.id ? { ...v, ...formData } : v));
-      } else {
-        setVouchers([...vouchers, { id: Date.now(), ...formData }]);
+  const handleSubmit = async (formData) => {
+    try {
+      if (modalType === 'voucher') {
+        if (editItem) {
+          // Update existing voucher
+          const response = await fetch(`/api/vouchers/${editItem.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+          });
+
+          if (response.ok) {
+            const updatedVoucher = await response.json();
+            setVouchers(vouchers.map(v => v.id === editItem.id ? updatedVoucher : v));
+          }
+        } else {
+          // Create new voucher
+          const response = await fetch('/api/vouchers', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+          });
+
+          if (response.ok) {
+            const newVoucher = await response.json();
+            setVouchers([...vouchers, newVoucher]);
+          }
+        }
+      } else if (modalType === 'service') {
+        if (editItem) {
+          // Update existing service
+          const response = await fetch(`/api/services/${editItem.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+          });
+
+          if (response.ok) {
+            const updatedService = await response.json();
+            setServices(services.map(s => s.id === editItem.id ? updatedService : s));
+          }
+        } else {
+          // Create new service
+          const response = await fetch('/api/services', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+          });
+
+          if (response.ok) {
+            const newService = await response.json();
+            setServices([...services, newService]);
+          }
+        }
       }
-    } else if (modalType === 'service') {
-      if (editItem) {
-        setServices(services.map(s => s.id === editItem.id ? { ...s, ...formData } : s));
-      } else {
-        setServices([...services, { id: Date.now(), ...formData }]);
-      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
     }
     closeModal();
   };
 
-  const deleteItem = (type, id) => {
+  const deleteItem = async (type, id) => {
     if (confirm('Naozaj chcete odstrániť túto položku?')) {
-      if (type === 'voucher') {
-        setVouchers(vouchers.filter(v => v.id !== id));
-      } else if (type === 'service') {
-        setServices(services.filter(s => s.id !== id));
+      try {
+        if (type === 'voucher') {
+          const response = await fetch(`/api/vouchers/${id}`, {
+            method: 'DELETE'
+          });
+
+          if (response.ok) {
+            setVouchers(vouchers.filter(v => v.id !== id));
+          }
+        } else if (type === 'service') {
+          const response = await fetch(`/api/services/${id}`, {
+            method: 'DELETE'
+          });
+
+          if (response.ok) {
+            setServices(services.filter(s => s.id !== id));
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting item:', error);
       }
     }
   };
 
-  const useVoucher = (voucherCode, amount) => {
-    setUsedVouchers(usedVouchers.map(v => {
-      if (v.voucher_code === voucherCode) {
-        const newRemaining = v.remaining_amount - amount;
-        return {
-          ...v,
-          remaining_amount: Math.max(0, newRemaining),
-          used_amount: v.used_amount + amount,
-          status: newRemaining <= 0 ? 'used' : 'active'
-        };
+  const useVoucher = async (voucherCode, amount) => {
+    try {
+      const response = await fetch(`/api/used-vouchers/use/${voucherCode}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount })
+      });
+
+      if (response.ok) {
+        const updatedVoucher = await response.json();
+        setUsedVouchers(usedVouchers.map(v => 
+          v.voucher_code === voucherCode ? updatedVoucher : v
+        ));
       }
-      return v;
-    }));
+    } catch (error) {
+      console.error('Error using voucher:', error);
+    }
   };
 
   return (
@@ -227,14 +278,21 @@ const AdminDashboard = () => {
             </div>
 
             <div className="space-y-4">
-              {orders.map(order => (
+              {orders.length === 0 ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <ShoppingBag size={48} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500 text-lg">Žiadne objednávky</p>
+                  <p className="text-gray-400">Objednávky sa zobrazujú tu keď sú vytvorené</p>
+                </div>
+              ) : (
+                orders.map(order => (
                 <div key={order.id} className="bg-white rounded-lg shadow p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-gray-800">
                         Objednávka #{order.id}
                       </h3>
-                      <p className="text-gray-600">{order.created_at}</p>
+                      <p className="text-gray-600">{new Date(order.created_at).toLocaleString('sk-SK')}</p>
                     </div>
                     <span className={`px-4 py-2 rounded-full font-semibold ${
                       order.status === 'pending' 
@@ -254,7 +312,7 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Položky</p>
-                      {order.items.map((item, idx) => (
+                      {(typeof order.items === 'string' ? JSON.parse(order.items) : order.items || []).map((item, idx) => (
                         <div key={idx} className="text-sm">
                           {item.quantity}× {item.item_name} - {item.price}€
                         </div>
@@ -277,7 +335,7 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         )}
@@ -296,7 +354,14 @@ const AdminDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {vouchers.map(voucher => (
+              {vouchers.length === 0 ? (
+                <div className="col-span-full bg-white rounded-lg shadow p-8 text-center">
+                  <Tag size={48} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500 text-lg">Žiadne poukazy</p>
+                  <p className="text-gray-400">Vytvorte svoj prvý poukaz pomocou tlačidla vyššie</p>
+                </div>
+              ) : (
+                vouchers.map(voucher => (
                 <div key={voucher.id} className="bg-white rounded-lg shadow p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div className="bg-purple-100 text-purple-600 rounded-lg p-3">
@@ -319,22 +384,22 @@ const AdminDashboard = () => {
                   </div>
                   
                   <div className="text-3xl font-bold text-gray-800 mb-2">
-                    {voucher.amount}€
+                    {voucher.value_cents / 100}€
                   </div>
-                  <p className="text-gray-600 text-sm mb-4">{voucher.description}</p>
+                  <p className="text-gray-600 text-sm mb-4">{voucher.code}</p>
                   
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Hash size={16} />
-                      <span>Dostupné: {voucher.available_count} ks</span>
+                      <span>Dostupné: {voucher.id} ks</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
                       <Calendar size={16} />
-                      <span>Platnosť: {voucher.validity_days} dní</span>
+                      <span>Platnosť: {voucher.expires_at} dní</span>
                     </div>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         )}
