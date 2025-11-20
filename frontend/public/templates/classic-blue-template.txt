@@ -1,0 +1,18 @@
+/* Demo šablóna - Classic Blue */
+
+Toto je textový placeholder pre šablónu classic-blue-template.png
+
+Ak chcete vytvoriť skutočnú šablónu:
+
+1. Vytvorte PNG obrázok 210x297mm (A4)
+2. Použite modrú farebnú schému (#1e40af)
+3. Nechajte voľné miesta pre text na týchto pozíciach:
+   - Suma: 50mm zľava, 80mm zhora
+   - Meno zákazníka: 50mm zľava, 120mm zhora  
+   - Názov služby: 50mm zľava, 140mm zhora
+   - Kód: 50mm zľava, 160mm zhora
+   - Platnosť: 50mm zľava, 180mm zhora
+
+4. Uložte ako classic-blue-template.png do tohto priečinka
+
+Dovtedy sa používa farebná šablóna ako fallback.

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vytvorenie šablóny poukazu</title>
+    <style>
+        .voucher-template {
+            width: 794px;  /* 210mm @ 96dpi */
+            height: 1123px; /* 297mm @ 96dpi */
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            position: relative;
+            margin: 20px auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            text-align: center;
+            border-bottom: 2px solid rgba(255,255,255,0.2);
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: 36px;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .content {
+            padding: 40px;
+            color: white;
+        }
+        
+        .amount-area {
+            position: absolute;
+            left: 189px;  /* 50mm */
+            top: 302px;   /* 80mm */
+            background: rgba(255,255,255,0.9);
+            border-radius: 10px;
+            padding: 20px 40px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .customer-area {
+            position: absolute;
+            left: 189px;  /* 50mm */
+            top: 453px;   /* 120mm */
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            padding: 10px 20px;
+            border: 1px dashed rgba(255,255,255,0.5);
+        }
+        
+        .service-area {
+            position: absolute;
+            left: 189px;  /* 50mm */
+            top: 529px;   /* 140mm */
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            padding: 8px 16px;
+        }
+        
+        .code-area {
+            position: absolute;
+            left: 189px;  /* 50mm */
+            top: 605px;   /* 160mm */
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
+            padding: 6px 12px;
+        }
+        
+        .expires-area {
+            position: absolute;
+            left: 189px;  /* 50mm */
+            top: 681px;   /* 180mm */
+            background: rgba(0,0,0,0.1);
+            border-radius: 5px;
+            padding: 6px 12px;
+        }
+        
+        .placeholder {
+            background: rgba(255,255,255,0.2);
+            border: 2px dashed rgba(255,255,255,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            color: rgba(255,255,255,0.8);
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        .decorative-circles {
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            margin: 20px 0;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="voucher-template">
+        <!-- Header -->
+        <div class="header">
+            <h1>DARČEKOVÁ POUKÁŽKA</h1>
+        </div>
+        
+        <!-- Amount area (50mm, 80mm) -->
+        <div class="amount-area">
+            <div class="placeholder">SUMA - 24pt, bold, modré</div>
+        </div>
+        
+        <!-- Customer name area (50mm, 120mm) -->
+        <div class="customer-area">
+            <div class="placeholder">MENO ZÁKAZNÍKA - 14pt, čierne</div>
+        </div>
+        
+        <!-- Service name area (50mm, 140mm) -->
+        <div class="service-area">
+            <div class="placeholder">NÁZOV SLUŽBY - 12pt, šedé</div>
+        </div>
+        
+        <!-- Code area (50mm, 160mm) -->
+        <div class="code-area">
+            <div class="placeholder">KÓD POUKAZU - 10pt, šedé</div>
+        </div>
+        
+        <!-- Expires area (50mm, 180mm) -->
+        <div class="expires-area">
+            <div class="placeholder">PLATNOSŤ - 10pt, šedé</div>
+        </div>
+        
+        <!-- Decorative elements -->
+        <div class="decorative-circles">
+            <div class="circle"></div>
+            <div class="circle"></div>
+            <div class="circle"></div>
+        </div>
+        
+        <!-- Footer info -->
+        <div style="position: absolute; bottom: 40px; left: 40px; right: 40px; text-align: center; color: rgba(255,255,255,0.7); font-size: 14px;">
+            <p>Táto šablóna ukazuje kde sa umiestni text. Nahraďte ju vlastným dizajnom.</p>
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin: 30px;">
+        <h3>Návod:</h3>
+        <ol style="text-align: left; max-width: 600px; margin: 0 auto;">
+            <li>Urobte screenshot tejto šablóny alebo vytvorte vlastný dizajn</li>
+            <li>Uložte ako PNG súbor s názvom "classic-blue-template.png"</li>
+            <li>Umiestnite do priečinka /frontend/public/templates/</li>
+            <li>Text sa automaticky pridá na označené pozície</li>
+        </ol>
+    </div>
+</body>
+</html>

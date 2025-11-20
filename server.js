@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import pkg from "pg";
 import dotenv from "dotenv";
 import cors from "cors";
+import QRCode from "qrcode";
 
 // Load env variables
 dotenv.config();
@@ -16,7 +17,31 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+// CORS – allow explicit origins so credentials work
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean)
+  .concat([
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://vouchers-blkg.onrender.com'
+  ]);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+app.options('*', cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // 🔥 1. DATABASE CONNECTION (Render PostgreSQL)
@@ -36,6 +61,33 @@ client
 
 
 // 🔥 2. API: CHECK HEALTH
+app.get("/api/companies/public/:slug", (req, res) => {
+  const slug = (req.params.slug || "").toLowerCase();
+  if (slug !== "magmas") {
+    return res.status(404).json({ success: false, message: "Company not found" });
+  }
+  return res.json({
+    success: true,
+    data: {
+      company: {
+        id: 1,
+        name: "Magmas",
+        slug: "magmas",
+        email: "info@magmas.test",
+        description: "Demo company stub served from port 4000",
+        phone: "+421000000000",
+        address: "Test Street 1",
+        city: "Bratislava",
+        postalCode: "81101",
+        country: "Slovakia",
+        website: "https://magmas.test",
+        logoUrl: null,
+        settings: { industry: "demo" }
+      }
+    }
+  });
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -47,12 +99,27 @@ app.get("/api/vouchers", async (req, res) => {
       SELECT id, code, value_cents, currency, expires_at, status, created_at
       FROM vouchers ORDER BY id DESC
     `);
-    res.json(result.rows);
+
+    // 🔥 Transformácia dát pre frontend
+    const mapped = result.rows.map(v => ({
+      id: v.id,
+      code: v.code,
+      amount: v.value_cents / 100,       // pôvodne value_cents → EUR
+      available_count: 1,                // Render vouchers nemajú sklad, dáme aspoň 1
+      validity_days: 365,                // Render nemá validity_days, doplníme
+      description: v.status,             // alebo daj '' keď nechceš
+      expires_at: v.expires_at,
+      status: v.status,
+      created_at: v.created_at
+    }));
+
+    res.json(mapped);
   } catch (err) {
     console.error("Voucher error:", err);
     res.status(500).json({ error: "DB error" });
   }
 });
+
 
 // 🔥 4. API: GET ONE VOUCHER BY CODE
 app.get("/api/voucher/:code", async (req, res) => {
@@ -247,11 +314,58 @@ app.post("/api/used-vouchers/use/:code", async (req, res) => {
 app.post("/api/vouchers", async (req, res) => {
   try {
     const { amount, available_count, validity_days, description } = req.body;
+
+    // Pre Render voucher systém musíme mapovať správne stĺpce
+    const value_cents = Math.round(amount * 100); // EUR -> centy
+    const expires_at = new Date();
+    expires_at.setDate(expires_at.getDate() + validity_days); // pridáme dni
+    
+    // Generujeme unikátny kód
+    const code = `VOUCH-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+    // 1️⃣ Vytvoríme voucher v Render štruktúre
     const result = await client.query(
-      "INSERT INTO vouchers (amount, available_count, validity_days, description) VALUES ($1, $2, $3, $4) RETURNING *",
-      [amount, available_count, validity_days, description]
+      `INSERT INTO vouchers (code, value_cents, currency, expires_at, status, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [code, value_cents, 'EUR', expires_at, 'active', new Date()]
     );
-    res.json(result.rows[0]);
+
+    const voucher = result.rows[0];
+
+    // 2️⃣ QR kód bude obsahovať URL na zobrazenie voucheru
+    const qrData = `https://terminar-vouchers.onrender.com/voucher/${voucher.code}`;
+    
+    // 3️⃣ Generovanie Base64 QR kódu
+    const qrImage = await QRCode.toDataURL(qrData);
+
+    // 4️⃣ Skúsime pridať QR kód (ak stĺpec existuje)
+    try {
+      await client.query(
+        "UPDATE vouchers SET qr_code = $1 WHERE id = $2",
+        [qrImage, voucher.id]
+      );
+      voucher.qr_code = qrImage;
+    } catch (qrError) {
+      console.log("QR kód sa nepodarilo uložiť (stĺpec možno neexistuje):", qrError.message);
+      // Nevadí, pokračujeme bez QR kódu
+    }
+
+    // 5️⃣ Transformujeme odpoveď do frontend formátu
+    const response = {
+      id: voucher.id,
+      code: voucher.code,
+      amount: voucher.value_cents / 100,
+      available_count: 1,
+      validity_days: validity_days,
+      description: description,
+      expires_at: voucher.expires_at,
+      status: voucher.status,
+      created_at: voucher.created_at,
+      qr_code: voucher.qr_code || null
+    };
+
+    res.json(response);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
@@ -261,12 +375,124 @@ app.post("/api/vouchers", async (req, res) => {
 // Update voucher
 app.put("/api/vouchers/:id", async (req, res) => {
   try {
-    const { amount, available_count, validity_days, description } = req.body;
+    const { amount, validity_days, description } = req.body;
+    
+    const value_cents = Math.round(amount * 100); // EUR -> centy
+    const expires_at = new Date();
+    expires_at.setDate(expires_at.getDate() + validity_days); // pridáme dni
+    
     const result = await client.query(
-      "UPDATE vouchers SET amount = $1, available_count = $2, validity_days = $3, description = $4 WHERE id = $5 RETURNING *",
-      [amount, available_count, validity_days, description, req.params.id]
+      "UPDATE vouchers SET value_cents = $1, expires_at = $2, status = $3 WHERE id = $4 RETURNING *",
+      [value_cents, expires_at, description || 'active', req.params.id]
     );
-    res.json(result.rows[0]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Voucher not found" });
+    }
+
+    const voucher = result.rows[0];
+    
+    // Transformujeme odpoveď do frontend formátu
+    const response = {
+      id: voucher.id,
+      code: voucher.code,
+      amount: voucher.value_cents / 100,
+      available_count: 1,
+      validity_days: validity_days,
+      description: description,
+      expires_at: voucher.expires_at,
+      status: voucher.status,
+      created_at: voucher.created_at
+    };
+    
+    res.json(response);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Validate voucher by code
+app.get("/api/vouchers/validate/:code", async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    const result = await client.query(
+      "SELECT * FROM vouchers WHERE code = $1",
+      [code]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Poukaz s týmto kódom neexistuje" });
+    }
+    
+    const voucher = result.rows[0];
+    
+    // Skontrolujeme či nie je expirovaný
+    const isExpired = new Date(voucher.expires_at) < new Date();
+    
+    // Transformujeme dáta pre frontend
+    const response = {
+      id: voucher.id,
+      code: voucher.code,
+      amount: voucher.value_cents ? voucher.value_cents / 100 : voucher.amount,
+      service_name: voucher.description || 'Darčekový poukaz',
+      customer_name: voucher.customer_name,
+      expires_at: voucher.expires_at,
+      status: isExpired ? 'expired' : voucher.status,
+      created_at: voucher.created_at
+    };
+    
+    res.json(response);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Redeem voucher
+app.post("/api/vouchers/redeem/:code", async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    const result = await client.query(
+      "SELECT * FROM vouchers WHERE code = $1",
+      [code]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Poukaz s týmto kódom neexistuje" });
+    }
+    
+    const voucher = result.rows[0];
+    
+    // Skontrolujeme stav poukazu
+    if (voucher.status === 'used') {
+      return res.status(400).json({ message: "Tento poukaz už bol uplatnený" });
+    }
+    
+    if (new Date(voucher.expires_at) < new Date()) {
+      return res.status(400).json({ message: "Tento poukaz expiroval" });
+    }
+    
+    // Označíme poukaz ako použitý
+    const updateResult = await client.query(
+      "UPDATE vouchers SET status = 'used', used_at = NOW() WHERE code = $1 RETURNING *",
+      [code]
+    );
+    
+    if (updateResult.rows.length === 0) {
+      return res.status(500).json({ message: "Chyba pri uplatňovaní poukazu" });
+    }
+    
+    res.json({ 
+      message: "Poukaz bol úspešne uplatnený",
+      voucher: {
+        code: updateResult.rows[0].code,
+        amount: updateResult.rows[0].value_cents ? updateResult.rows[0].value_cents / 100 : updateResult.rows[0].amount,
+        used_at: updateResult.rows[0].used_at
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
@@ -284,6 +510,81 @@ app.delete("/api/vouchers/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// 🔥 NEW ENDPOINT: GENERATE PDF FROM HTML
+app.post("/api/vouchers/generate-pdf", async (req, res) => {
+  try {
+    const { html, templateId, voucherData } = req.body;
+    
+    if (!html) {
+      return res.status(400).json({ error: "HTML content is required" });
+    }
+
+    // Pre development - jednoduchý HTML export namiesto wkhtmltopdf
+    // V production by tu bolo: wkhtmltopdf generovanie
+    console.log('📄 Generating PDF for template:', templateId);
+    
+    // Pre teraz vrátime HTML ako response pre debugging
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Disposition', `inline; filename="voucher-${voucherData.code}.html"`);
+    
+    // Pridáme CSS pre tlač do HTML
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Poukážka - ${voucherData.customerName}</title>
+        <style>
+          @page { 
+            size: A4; 
+            margin: 0; 
+          }
+          body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif;
+          }
+          @media print {
+            body { 
+              -webkit-print-color-adjust: exact; 
+              print-color-adjust: exact;
+            }
+          }
+          .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+          }
+          .print-button:hover {
+            background: #2563eb;
+          }
+          @media print {
+            .print-button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-button" onclick="window.print()">🖨️ Tlačiť</button>
+        ${html}
+      </body>
+      </html>
+    `;
+    
+    res.send(fullHtml);
+    
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    res.status(500).json({ error: "Failed to generate PDF", details: error.message });
   }
 });
 
